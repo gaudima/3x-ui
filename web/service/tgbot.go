@@ -259,7 +259,7 @@ func (LinkGenT) ssLink(stream *model.StreamSettings, address string, port uint16
 	}
 
 	encoded := linkGen.safeBase64([]byte(method + ":" + strings.Join(passwordArray, ":")))
-	link, err := url.Parse(fmt.Sprintf(`ss://$%s@%s:%d`, encoded, address, port))
+	link, err := url.Parse(fmt.Sprintf(`ss://%s@%s:%d`, encoded, address, port))
 	if err != nil {
 		return "", err
 	}
