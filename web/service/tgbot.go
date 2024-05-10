@@ -270,8 +270,6 @@ func (LinkGenT) ssLink(stream *model.StreamSettings, address string, port uint16
 func (LinkGenT) genLink(inbound *model.Inbound, client *model.Client, address string, port uint16, forceTls string, remark string) (string, error) {
 	streamSettings := model.StreamSettings{}
 	err := json.Unmarshal([]byte(inbound.StreamSettings), &streamSettings)
-	fmt.Println(inbound.StreamSettings)
-	fmt.Println(streamSettings)
 
 	if err != nil {
 		return "", err
@@ -326,18 +324,23 @@ func qrEncode(str string) ([]byte, error) {
 	return w.Bytes(), nil
 }
 
+type AddClientIbInfo struct {
+	ibId     int
+	ibRemark string
+}
+
 type Tgbot struct {
 	inboundService InboundService
 	settingService SettingService
 	serverService  ServerService
 	xrayService    XrayService
 	lastStatus     *Status
-	addClientIbId  map[int64]int
+	addClientIbId  map[int64]AddClientIbInfo
 }
 
 func (t *Tgbot) NewTgbot() *Tgbot {
 	newBot := new(Tgbot)
-	newBot.addClientIbId = make(map[int64]int)
+	newBot.addClientIbId = make(map[int64]AddClientIbInfo)
 	return newBot
 }
 
@@ -480,6 +483,7 @@ func (t *Tgbot) OnReceive() {
 
 	botHandler.HandleMessage(func(_ *telego.Bot, message telego.Message) {
 		t.SendMsgToTgbot(message.Chat.ID, t.I18nBot("tgbot.keyboardClosed"), tu.ReplyKeyboardRemove())
+		t.sendStart(&message, message.Chat.ID, checkAdmin(message.From.ID))
 	}, th.TextEqual(t.I18nBot("tgbot.buttons.closeKeyboard")))
 
 	botHandler.HandleMessage(func(_ *telego.Bot, message telego.Message) {
@@ -506,12 +510,13 @@ func (t *Tgbot) OnReceive() {
 						output += t.I18nBot("tgbot.messages.userSaved")
 					}
 					t.SendMsgToTgbot(message.Chat.ID, output, tu.ReplyKeyboardRemove())
+					t.sendStart(&message, message.Chat.ID, checkAdmin(message.From.ID))
 				}
 			} else {
 				t.SendMsgToTgbot(message.Chat.ID, t.I18nBot("tgbot.noResult"), tu.ReplyKeyboardRemove())
 			}
 		}
-		inboundId, ok := t.addClientIbId[message.Chat.ID]
+		inboundInfo, ok := t.addClientIbId[message.Chat.ID]
 		if ok {
 			delete(t.addClientIbId, message.Chat.ID)
 			email := strings.Split(message.Text, " ")[0]
@@ -519,7 +524,7 @@ func (t *Tgbot) OnReceive() {
 				t.SendMsgToTgbot(message.Chat.ID, t.I18nBot("tgbot.answers.addClientCancelled"))
 				return
 			}
-			needRestart, err := t.addClient(inboundId, email)
+			needRestart, err := t.addClient(inboundInfo.ibId, email+"_"+inboundInfo.ibRemark)
 			if err != nil {
 				t.SendMsgToTgbot(message.Chat.ID, t.I18nBot("tgbot.answers.errorOperation"))
 				return
@@ -527,7 +532,7 @@ func (t *Tgbot) OnReceive() {
 			if needRestart {
 				t.xrayService.SetToNeedRestart()
 			}
-			t.searchClient(message.Chat.ID, email)
+			t.searchClient(message.Chat.ID, email+"_"+inboundInfo.ibRemark)
 		} else {
 			if message.Text == t.I18nBot("tgbot.buttons.mainMenu") {
 				t.sendStart(&message, message.Chat.ID, checkAdmin(message.From.ID))
@@ -632,12 +637,17 @@ func (t *Tgbot) asnwerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 				}
 			case "add_client":
 				inboundId, err := strconv.Atoi(dataArray[1])
+				inboundRemark := dataArray[2]
+				fmt.Println(dataArray)
 				if err != nil {
 					t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.errorOperation"))
 				} else {
 					t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.addClient"))
 					t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.messages.email", "Email=="))
-					t.addClientIbId[chatId] = inboundId
+					t.addClientIbId[chatId] = AddClientIbInfo{
+						ibId:     inboundId,
+						ibRemark: inboundRemark,
+					}
 				}
 			case "client_get_usage":
 				t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.messages.email", "Email=="+email))
@@ -1437,7 +1447,7 @@ func (t *Tgbot) getInboundInfo(chatId int64, inboundId int) {
 	kbdButtons = append(kbdButtons, tu.InlineKeyboardRow(
 		tu.InlineKeyboardButton(
 			t.I18nBot("tgbot.buttons.addClient"),
-		).WithCallbackData("add_client "+strconv.Itoa(inbound.Id)),
+		).WithCallbackData("add_client "+strconv.Itoa(inbound.Id)+" "+inbound.Remark),
 	))
 	for _, client := range clients {
 		kbdButtons = append(kbdButtons, tu.InlineKeyboardRow(
@@ -1454,7 +1464,9 @@ func (t *Tgbot) addClient(inboundId int, email string) (bool, error) {
 		return false, err
 	}
 
-	client := model.Client{}
+	client := model.Client{
+		Enable: true,
+	}
 
 	client.Email = email
 	if ib.Protocol == model.VLESS {
