@@ -620,6 +620,7 @@
 "addClient" = "➕ Add Client"
 "getLinkAndQr" = "🔗 Get Link and QR"
 "mainMenu" = "⤴️ Main Menu"
+"setupInstructions" = "📖 Setup Instructions"
 
 [tgbot.answers]
 "successfulOperation" = "✅ Operation successful!"

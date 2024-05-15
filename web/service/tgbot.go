@@ -38,6 +38,7 @@ var (
 	adminIds    []int64
 	isRunning   bool
 	hostname    string
+	docsPort    string
 	hashStorage *global.HashStorage
 )
 
@@ -362,6 +363,8 @@ func (t *Tgbot) Start(i18nFS embed.FS) error {
 	hashStorage = global.NewHashStorage(20 * time.Minute)
 
 	t.SetHostname()
+	t.SetDocsPort()
+
 	tgBottoken, err := t.settingService.GetTgBotToken()
 	if err != nil || tgBottoken == "" {
 		logger.Warning("Get TgBotToken failed:", err)
@@ -440,6 +443,10 @@ func (t *Tgbot) SetHostname() {
 		return
 	}
 	hostname = host
+}
+
+func (t *Tgbot) SetDocsPort() {
+	docsPort = os.Getenv("DOCS_PORT")
 }
 
 func (t *Tgbot) Stop() {
@@ -1158,7 +1165,7 @@ func (t *Tgbot) asnwerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 				return
 			}
 			email := dataArray[1]
-			t.sendCallbackAnswerTgBot(callbackQuery.ID, "tgbot.answers.successfulOperation")
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.answers.successfulOperation"))
 			t.clientLinkAndQrMsg(chatId, email)
 		}
 	}
@@ -1519,8 +1526,14 @@ func (t *Tgbot) clientLinkAndQrMsg(chatId int64, email string) {
 		t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.wentWrong")+"\n"+err.Error())
 		return
 	}
-
-	t.sendPhotoFromMemory(chatId, encoded, link)
+	kbd := tu.InlineKeyboard(
+		tu.InlineKeyboardRow(
+			tu.InlineKeyboardButton(
+				t.I18nBot("tgbot.buttons.setupInstructions"),
+			).WithURL("https://" + hostname + ":" + docsPort),
+		),
+	)
+	t.sendPhotoFromMemory(chatId, encoded, link, kbd)
 }
 
 func (t *Tgbot) clientInfoMsg(
@@ -2028,13 +2041,19 @@ func (t *Tgbot) onlineClients(chatId int64, messageID ...int) {
 	}
 }
 
-func (t *Tgbot) sendPhotoFromMemory(chatId int64, picture []byte, caption string) {
+func (t *Tgbot) sendPhotoFromMemory(chatId int64, picture []byte, caption string, replyMarkup ...telego.ReplyMarkup) {
 	photo := tu.Photo(
 		tu.ID(chatId),
 		tu.File(
 			tu.NameReader(bytes.NewReader(picture), caption),
 		),
 	).WithCaption(caption)
+
+	if len(replyMarkup) >= 1 {
+		photo = photo.WithReplyMarkup(replyMarkup[0])
+	}
+	fmt.Println(photo)
+
 	_, err := bot.SendPhoto(photo)
 	if err != nil {
 		logger.Error("Error in uploading photo: ", err)
