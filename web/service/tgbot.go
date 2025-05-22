@@ -544,7 +544,9 @@ func (t *Tgbot) OnReceive() {
 			t.searchClient(message.Chat.ID, email+"_"+inboundInfo.ibRemark)
 		} else {
 			if t.notifyInProgress {
-				t.sendMessageToAllUsers(message.Text)
+				if message.Text != "x" {
+					t.sendMessageToAllUsers(message.Text)
+				}
 				t.notifyInProgress = false
 			} else {
 				if message.Text == t.I18nBot("tgbot.buttons.mainMenu") {
@@ -1957,7 +1959,7 @@ func (t *Tgbot) sendMessageToAllUsers(msg string) {
 					for _, client := range clients {
 						if client.TgID != 0 {
 							chatID := client.TgID
-							if !int64Contains(chatIDsDone, chatID) && checkAdmin(chatID) {
+							if !int64Contains(chatIDsDone, chatID) {
 								t.SendMsgToTgbot(chatID, msg)
 								chatIDsDone = append(chatIDsDone, chatID)
 							}
