@@ -582,6 +582,7 @@
 "depleteSoon" = "🔜 Deplete Soon: {{ .Deplete }}\r\n\r\n"
 "backupTime" = "🗄 Backup Time: {{ .Time }}\r\n"
 "refreshedOn" = "\r\n📋🔄 Refreshed On: {{ .Time }}\r\n\r\n"
+"message" = "Message: \r\n"
 "yes" = "✅ Yes"
 "no" = "❌ No"
 
@@ -618,6 +619,7 @@
 "limitTraffic" = "🚧 Traffic Limit"
 "getBanLogs" = "Get Ban Logs"
 "addClient" = "➕ Add Client"
+"notifyUsers" = "Notify Users"
 "getLinkAndQr" = "🔗 Get Link and QR"
 "mainMenu" = "⤴️ Main Menu"
 "setupInstructions" = "📖 Setup Instructions"

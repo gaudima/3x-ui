@@ -331,17 +331,19 @@ type AddClientIbInfo struct {
 }
 
 type Tgbot struct {
-	inboundService InboundService
-	settingService SettingService
-	serverService  ServerService
-	xrayService    XrayService
-	lastStatus     *Status
-	addClientIbId  map[int64]AddClientIbInfo
+	inboundService   InboundService
+	settingService   SettingService
+	serverService    ServerService
+	xrayService      XrayService
+	lastStatus       *Status
+	addClientIbId    map[int64]AddClientIbInfo
+	notifyInProgress bool
 }
 
 func (t *Tgbot) NewTgbot() *Tgbot {
 	newBot := new(Tgbot)
 	newBot.addClientIbId = make(map[int64]AddClientIbInfo)
+	newBot.notifyInProgress = false
 	return newBot
 }
 
@@ -541,8 +543,13 @@ func (t *Tgbot) OnReceive() {
 			}
 			t.searchClient(message.Chat.ID, email+"_"+inboundInfo.ibRemark)
 		} else {
-			if message.Text == t.I18nBot("tgbot.buttons.mainMenu") {
-				t.sendStart(&message, message.Chat.ID, checkAdmin(message.From.ID))
+			if t.notifyInProgress {
+				t.sendMessageToAllUsers(message.Text)
+				t.notifyInProgress = false
+			} else {
+				if message.Text == t.I18nBot("tgbot.buttons.mainMenu") {
+					t.sendStart(&message, message.Chat.ID, checkAdmin(message.From.ID))
+				}
 			}
 		}
 	}, th.AnyMessage())
@@ -1123,6 +1130,10 @@ func (t *Tgbot) asnwerCallback(callbackQuery *telego.CallbackQuery, isAdmin bool
 
 	if len(dataArray) >= 1 {
 		switch dataArray[0] {
+		case "notify_users":
+			t.notifyInProgress = true
+			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.notifyUsers"))
+			t.SendMsgToTgbot(chatId, t.I18nBot("tgbot.messages.message"))
 		case "get_usage":
 			t.sendCallbackAnswerTgBot(callbackQuery.ID, t.I18nBot("tgbot.buttons.serverUsage"))
 			t.SendMsgToTgbot(chatId, t.getServerUsage())
@@ -1197,6 +1208,9 @@ func (t *Tgbot) SendAnswer(chatId int64, msg string, isAdmin bool, messageFromId
 				//tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.commands")).WithCallbackData(t.encodeQuery("commands")),
 				tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.depleteSoon")).WithCallbackData(t.encodeQuery("deplete_soon")),
 				tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.onlines")).WithCallbackData(t.encodeQuery("onlines")),
+			),
+			tu.InlineKeyboardRow(
+				tu.InlineKeyboardButton(t.I18nBot("tgbot.buttons.notifyUsers")).WithCallbackData(t.encodeQuery("notify_users")),
 			),
 		)
 		t.SendMsgToTgbot(chatId, msg, adminKeyboard)
@@ -1924,6 +1938,34 @@ func (t *Tgbot) getExhausted(chatId int64) {
 	} else {
 		output += t.I18nBot("tgbot.messages.refreshedOn", "Time=="+time.Now().Format("2006-01-02 15:04:05"))
 		t.SendMsgToTgbot(chatId, output)
+	}
+}
+
+func (t *Tgbot) sendMessageToAllUsers(msg string) {
+	inbounds, err := t.inboundService.GetAllInbounds()
+	if err != nil {
+		logger.Warning("Unable to load Inbounds", err)
+	}
+
+	var chatIDsDone []int64
+
+	for _, inbound := range inbounds {
+		if inbound.Enable {
+			if len(inbound.ClientStats) > 0 {
+				clients, err := t.inboundService.GetClients(inbound)
+				if err == nil {
+					for _, client := range clients {
+						if client.TgID != 0 {
+							chatID := client.TgID
+							if !int64Contains(chatIDsDone, chatID) && checkAdmin(chatID) {
+								t.SendMsgToTgbot(chatID, msg)
+								chatIDsDone = append(chatIDsDone, chatID)
+							}
+						}
+					}
+				}
+			}
+		}
 	}
 }
 

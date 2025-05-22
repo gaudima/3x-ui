@@ -582,6 +582,7 @@
 "depleteSoon" = "🔜 Скоро исчерпание: {{ .Deplete }}\r\n\r\n"
 "backupTime" = "🗄 Время резервного копирования: {{ .Time }}\r\n"
 "refreshedOn" = "\r\n📋🔄 Обновлено: {{ .Time }}\r\n\r\n"
+"message" = "Сообщение: \r\n"
 "yes" = "✅ Да"
 "no" = "❌ Нет"
 
@@ -618,6 +619,7 @@
 "limitTraffic" = "🚧 Лимит трафика"
 "getBanLogs" = "Логи блокировок"
 "addClient" = "➕ Добавить клиента"
+"notifyUsers" = "Уведомить пользователей"
 "getLinkAndQr" = "🔗 Получить ссылку и QR"
 "mainMenu" = "⤴️ Главное меню"
 "setupInstructions" = "📖 Инструкция по настройке"
